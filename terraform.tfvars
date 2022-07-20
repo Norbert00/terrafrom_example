@@ -1,0 +1,1 @@
+buckets_names = ["tf-bucket-test-aa", "tf-bucket-test-b"]
