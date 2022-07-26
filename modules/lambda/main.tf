@@ -1,54 +1,6 @@
-resource "aws_iam_role_policy" "lambda_policy" {
-  name = var.lambda_policy_name
-  assume_role_policy = aws_iam_role.iam_for_lambda.id
-  # policy = <<EOF
-  # {
-  #   "Version": "2012-10-17",
-  #   "Statement": [
-  #     {
-  #       "Action": [
-  #         "s3:ListBucket",
-  #         "s3:GetObject",
-  #         "s3:CopyObject",
-  #         "s3:HeadObject"
-  #       ],
-  #       "Effect": "Allow",
-  #       "Resource": [
-  #         "arn:aws:s3:::${var.bucket_name}-src-bucket",
-  #         "arn:aws:s3:::${var.bucket_name}-src-bucket/*"
-  #       ]
-  #     },
-  #     {
-  #       "Action": [
-  #         "s3:ListBucket",
-  #         "s3:PutObject",
-  #         "s3:PutObjectAcl",
-  #         "s3:CopyObject",
-  #         "s3:HeadObject"
-  #       ],
-  #       "Effect": "Allow",
-  #       "Resource": [
-  #         "arn:aws:s3:::${var.bucket_name}-dst-bucket",
-  #         "arn:aws:s3:::${var.bucket_name}-dst-bucket/*"
-  #       ]
-  #     },
-  #     {
-  #       "Action": [
-  #         "logs:CreateLogGroup",
-  #         "logs:CreateLogStream",
-  #         "logs:PutLogEvents"
-  #       ],
-  #       "Effect": "Allow",
-  #       "Resource": "*"
-  #     }
-  #   ]
-  # }
-  # EOF
-}
-
 resource "aws_iam_role" "iam_for_lambda" {
   name = var.iam_for_lambda
-  assume_role_policy = <<EOF
+  assume_role_policy =<<-EOF
   {
     "Version": "2012-10-17",
     "Statement": [
@@ -58,7 +10,7 @@ resource "aws_iam_role" "iam_for_lambda" {
           "Service": "lambda.amazonaws.com"
         },
         "Effect": "Allow",
-        "Sid": ""
+        "Sid": "test"
       }
     ]
   }
@@ -71,6 +23,14 @@ resource "aws_lambda_function" "test_lambda" {
   role          = aws_iam_role.iam_for_lambda.arn
   handler       = var.lambda_handler
   runtime = var.lambda_runtime
+  filename = data.archive_file.init.output_path
+
+    environment {
+    variables = {
+      DESTINATION_BUCKET = "tf-bucket-test-b"
+    }
+  }
+
 }
 
 data "archive_file" "init" {
@@ -78,3 +38,21 @@ data "archive_file" "init" {
   source_file = var.lambda_source_file_path
   output_path = var.lambda_outputh_path
 }
+
+
+resource "aws_iam_role_policy_attachment" "test-attach" {
+  role       = aws_iam_role.iam_for_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonS3FullAccess"
+}
+
+
+resource "aws_s3_bucket_notification" "aws-lambda-trigger" {
+bucket = aws_s3_bucket.bucket.id
+lambda_function {
+lambda_function_arn = aws_lambda_function.test_lambda.arn
+events              = ["s3:ObjectCreated:*"]
+filter_prefix       = "file-prefix"
+filter_suffix       = "file-extension"
+}
+}
+
